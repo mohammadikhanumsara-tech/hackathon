@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Health Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef2f5;--card:#fff;--ink:#14212b;--mut:#5d6f7d;--line:#d6dee5;--accent:#0b6e8a;
+--ex:#1e8e5a;--gd:#3a86c8;--fr:#c98a00;--po:#c4352b;--exbg:#e3f4ec;--gdbg:#e4eff9;--frbg:#fbf0d6;--pobg:#fbe5e3;
+font-family:'IBM Plex Sans',system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--ink);color:#fff}
+header h1{font-size:18px;margin:0;font-weight:600}
+header .sub{color:#a9bac7;font-size:13px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:6px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+header button{background:transparent;color:#fff;border-color:#4a5d6b}
+.banner{padding:8px 24px;font-size:14px;display:none}
+.banner.show{display:block}
+.banner.err{background:var(--pobg);color:var(--po)}
+.banner.sim{background:var(--frbg);color:#7a5400}
+main{max-width:1200px;margin:0 auto;padding:20px 24px 48px;display:grid;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px}
+h2{font-size:15px;margin:0 0 10px;font-weight:600}
+.top{display:grid;grid-template-columns:minmax(260px,1fr) 2fr;gap:18px}
+.health .state{font-size:40px;font-weight:600;line-height:1.1;margin:4px 0 6px}
+.health.Excellent{border-left:6px solid var(--ex)}.health.Excellent .state{color:var(--ex)}
+.health.Good{border-left:6px solid var(--gd)}.health.Good .state{color:var(--gd)}
+.health.Fair{border-left:6px solid var(--fr)}.health.Fair .state{color:var(--fr)}
+.health.Poor{border-left:6px solid var(--po)}.health.Poor .state{color:var(--po)}
+.reasons{margin:0;padding-left:18px;color:var(--mut);font-size:14px}
+.hist{margin-top:12px;font-size:12px;color:var(--mut);max-height:90px;overflow:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.m{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--card)}
+.m .lbl{color:var(--mut);font-size:13px}
+.m .val{font-size:28px;font-weight:600;margin:2px 0}
+.m .st{font-size:12px;font-weight:500;display:inline-block;padding:1px 8px;border-radius:99px}
+.st.Excellent{background:var(--exbg);color:var(--ex)}.st.Good{background:var(--gdbg);color:var(--gd)}
+.st.Fair{background:var(--frbg);color:#7a5400}.st.Poor{background:var(--pobg);color:var(--po)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+svg.chart{width:100%;height:170px;display:block}
+.empty{color:var(--mut);font-size:14px;padding:8px 0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:500;font-size:13px}
+.sev{padding:1px 8px;border-radius:99px;font-size:12px;font-weight:500}
+.sev.high,.sev.critical{background:var(--pobg);color:var(--po)}
+.sev.medium,.sev.warning{background:var(--frbg);color:#7a5400}
+.sev.low,.sev.info,.sev.ok{background:var(--gdbg);color:var(--gd)}
+/* egress panel: the trust boundary is the memorable element */
+.egress{display:grid;grid-template-columns:1fr 28px 1fr;gap:0}
+.side{padding:4px 12px}
+.boundary{border-left:2px dashed var(--accent);position:relative}
+.boundary span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;background:var(--card);color:var(--accent);font-size:12px;padding:0 8px}
+.side h3{font-size:13px;margin:0 0 8px;color:var(--accent);font-weight:600}
+.pl{border:1px solid var(--line);border-radius:6px;margin-bottom:6px;background:#fafcfd}
+.pl summary{cursor:pointer;padding:6px 10px;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.pl.bad{border-color:var(--po);background:var(--pobg)}
+.pl pre{margin:0;padding:8px 10px;font-size:12px;overflow:auto;border-top:1px solid var(--line)}
+.flag{color:var(--po);font-weight:600}
+.ok-tag{color:var(--ex);font-weight:500}
+.allow{font-size:12px;color:var(--mut)}
+.scroll{max-height:360px;overflow:auto}
+@media (max-width:760px){.top{grid-template-columns:1fr}.egress{grid-template-columns:1fr}.boundary{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Fleet Health Dashboard</h1><div class="sub" id="meta">connecting...</div></div>
+  <div class="ctl">
+    <button id="simBtn">Use simulated feed</button>
+    <button id="spikeBtn" hidden>Inject CPU spike</button>
+    <button id="secretBtn" hidden>Inject secret leak</button>
+  </div>
+</header>
+<div class="banner err" id="errBar"></div>
+<div class="banner sim" id="simBar">Simulated feed. This is a local design preview, not data from the collector.</div>
+
+<main>
+  <section class="top">
+    <div class="card health" id="health"><h2>System health</h2><div class="state">-</div><ul class="reasons"></ul><div class="hist mono" id="hist"></div></div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="charts">
+    <div class="card"><h2>CPU usage (%)</h2><svg class="chart" id="cpuChart"></svg></div>
+    <div class="card"><h2>Memory usage (%)</h2><svg class="chart" id="memChart"></svg></div>
+  </section>
+
+  <section class="card">
+    <h2>Incidents (anomalies grouped and explained)</h2>
+    <div id="incidents"></div>
+  </section>
+
+  <section class="card">
+    <h2>Alerts</h2>
+    <div class="scroll"><table><thead><tr><th>Time (UTC)</th><th>Severity</th><th>Metric</th><th>Source</th><th>Detail</th></tr></thead><tbody id="alerts"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Egress proof: exactly what left the customer environment</h2>
+    <div class="allow" id="allowTxt"></div>
+    <div class="egress" style="margin-top:10px">
+      <div class="side"><h3>Customer environment (collector)</h3><div id="localSide" class="empty">Raw logs and secrets stay here. Set COLLECTOR_EGRESS in the config to list what the collector says it sent.</div></div>
+      <div class="boundary"><span>trust boundary</span></div>
+      <div class="side"><h3>SaaS platform received</h3><div id="saasSide" class="scroll"></div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===== CONFIG: change these to match your teammates' backend ===== */
+const CONFIG = {
+  API: location.protocol === "file:" ? "http://localhost:8000" : "",  // hosted or served by the backend: same address as this page
+  COLLECTOR_EGRESS: "http://localhost:9000/egress",  // collector.py serves this; set to null to disable
+  TENANT: "company-a",
+  POLL_MS: 2000,
+  STALE_SEC: 60,                    // no data for this long => Poor
+};
+const ALLOW = ["payload_id","tenant_id","event_time_utc","source_tz","source_id","metric","value","severity","summary"];
+const THRESH = {   // fair / poor trigger points (configurable)
+  cpu:{label:"CPU",unit:"%",fair:70,poor:90},
+  disk:{label:"Disk",unit:"%",fair:80,poor:95},
+  memory:{label:"Memory",unit:"%",fair:75,poor:90},
+  latency:{label:"Latency",unit:" ms",fair:100,poor:250},
+  packet_loss:{label:"Packet loss",unit:"%",fair:1,poor:5},
+  failed_logins:{label:"Failed logins",unit:"",fair:5,poor:15},
+};
+const SECRET_RE = /(password|passwd|secret|token|api[_-]?key|bearer)\s*[=:]\s*\S+/i;
+
+let incidents = [], events = [], sim = false, simTimer = null, healthHist = [], lastState = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const utc = iso => new Date(iso).toISOString().slice(11,19);
+
+function level(metric, v){
+  const t = THRESH[metric]; if(!t) return "Good";
+  if(v >= t.poor) return "Poor";
+  if(v >= t.fair) return "Fair";
+  if(v >= t.fair*0.7) return "Good";
+  return "Excellent";
+}
+const RANK = {Excellent:0, Good:1, Fair:2, Poor:3};
+
+function latestByMetric(){
+  const m = {};
+  [...events].sort((a,b)=>a.event_time_utc.localeCompare(b.event_time_utc)).forEach(e=>{ m[e.metric]=e; });
+  return m;
+}
+
+function computeHealth(){
+  const m = latestByMetric(), reasons = [];
+  if(!events.length) return {state:"Poor", reasons:["No data received yet from the collector."]};
+  const newest = Math.max(...events.map(e=>Date.parse(e.event_time_utc)));
+  const age = (Date.now()-newest)/1000;
+  if(age > CONFIG.STALE_SEC) return {state:"Poor", reasons:[`Stale data: nothing received for ${Math.round(age)}s (limit ${CONFIG.STALE_SEC}s). Collector may be offline.`]};
+  let worst = "Excellent";
+  Object.entries(m).forEach(([k,e])=>{
+    const lv = level(k, Number(e.value));
+    if(RANK[lv] > RANK[worst]) worst = lv;
+    if(RANK[lv] >= 2) reasons.push(`${(THRESH[k]||{label:k}).label} is ${e.value}${(THRESH[k]||{}).unit||""} (${lv} at ${THRESH[k]?(lv==="Poor"?THRESH[k].poor:THRESH[k].fair):"?"}+)`);
+  });
+  if(!reasons.length) reasons.push("All metrics are within expected ranges. Collector is reporting.");
+  return {state:worst, reasons};
+}
+
+function chart(svgId, metric){
+  const svg = $(svgId), W=600, H=170, pad={l:34,r:8,t:8,b:18};
+  const pts = events.filter(e=>e.metric===metric).sort((a,b)=>a.event_time_utc.localeCompare(b.event_time_utc)).slice(-40);
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, y=v=>pad.t+ih-(Math.min(v,100)/100)*ih;
+  let g = [0,50,100].map(v=>`<line x1="${pad.l}" x2="${W-pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="#e3e9ee"/><text x="${pad.l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#5d6f7d">${v}</text>`).join("");
+  const t = THRESH[metric];
+  if(t) g += `<line x1="${pad.l}" x2="${W-pad.r}" y1="${y(t.fair)}" y2="${y(t.fair)}" stroke="#c98a00" stroke-dasharray="4 4"/><text x="${W-pad.r}" y="${y(t.fair)-4}" font-size="11" text-anchor="end" fill="#c98a00">Fair ${t.fair}</text>`;
+  if(pts.length<2){ svg.innerHTML = g+`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#5d6f7d" font-size="13">Waiting for data</text>`; return; }
+  const x=i=>pad.l+(i/(pts.length-1))*iw;
+  const line = pts.map((p,i)=>`${x(i)},${y(Number(p.value))}`).join(" ");
+  const last = pts[pts.length-1];
+  svg.innerHTML = g + `<polygon points="${pad.l},${pad.t+ih} ${line} ${x(pts.length-1)},${pad.t+ih}" fill="#0b6e8a" opacity=".12"/>`
+    + `<polyline points="${line}" fill="none" stroke="#0b6e8a" stroke-width="2"/>`
+    + `<circle cx="${x(pts.length-1)}" cy="${y(Number(last.value))}" r="4" fill="#0b6e8a"/>`
+    + `<text x="${pad.l}" y="${H-3}" font-size="11" fill="#5d6f7d">${utc(pts[0].event_time_utc)} UTC</text><text x="${W-pad.r}" y="${H-3}" font-size="11" text-anchor="end" fill="#5d6f7d">${utc(last.event_time_utc)} UTC</text>`;
+}
+
+function render(){
+  const h = computeHealth(), el = $("health");
+  el.className = "card health "+h.state;
+  el.querySelector(".state").textContent = h.state;
+  el.querySelector(".reasons").innerHTML = h.reasons.map(r=>`<li>${esc(r)}</li>`).join("");
+  if(h.state !== lastState){ healthHist.unshift(`${new Date().toISOString().slice(11,19)} UTC  ${lastState||"start"} -> ${h.state}`); healthHist = healthHist.slice(0,20); lastState = h.state; }
+  $("hist").innerHTML = healthHist.length ? "State changes:<br>"+healthHist.map(esc).join("<br>") : "";
+
+  const m = latestByMetric();
+  $("cards").innerHTML = Object.keys(THRESH).map(k=>{
+    const e = m[k], t = THRESH[k];
+    if(!e) return `<div class="m"><div class="lbl">${t.label}</div><div class="val">-</div><span class="st Good">no data</span></div>`;
+    const lv = level(k, Number(e.value));
+    return `<div class="m"><div class="lbl">${t.label}</div><div class="val">${esc(e.value)}<small style="font-size:14px;color:var(--mut)">${t.unit}</small></div><span class="st ${lv}">${lv}</span></div>`;
+  }).join("");
+
+  chart("cpuChart","cpu"); chart("memChart","memory");
+
+  const al = events.filter(e=>["high","critical","medium","warning"].includes(String(e.severity).toLowerCase()))
+    .sort((a,b)=>b.event_time_utc.localeCompare(a.event_time_utc)).slice(0,30);
+  $("alerts").innerHTML = al.length ? al.map(e=>`<tr><td class="mono">${utc(e.event_time_utc)}</td><td><span class="sev ${esc(String(e.severity).toLowerCase())}">${esc(e.severity)}</span></td><td>${esc(e.metric)}</td><td class="mono">${esc(e.source_id||"")}</td><td>${esc(e.summary||`${e.metric} = ${e.value}`)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">No alerts. Alerts appear when a payload has medium or high severity.</td></tr>`;
+
+  renderIncidents();
+  renderEgress();
+  $("meta").textContent = `Tenant ${CONFIG.TENANT} | ${events.length} payloads received | updated ${new Date().toISOString().slice(11,19)} UTC` + (sim?" | SIMULATED":"");
+}
+
+function renderIncidents(){
+  $("incidents").innerHTML = incidents.length ? incidents.map(i=>`<div style="border-left:5px solid ${i.severity==="high"?"var(--po)":"var(--fr)"};padding:6px 12px;margin-bottom:10px;background:#fafcfd">
+    <b>${esc(i.title)}</b> <span class="sev ${esc(i.severity)}">${esc(i.severity)}</span> <span class="mono" style="color:var(--mut)">${utc(i.time)} UTC</span>
+    <div><b>Why flagged:</b> ${esc(i.why_flagged)}</div>
+    <div><b>Suggested action:</b> ${esc(i.recommendation)}</div>
+    <div class="allow">Signals: ${i.signals.map(s=>esc(s.metric)+" z="+s.z).join(", ")}</div></div>`).join("")
+    : `<div class="empty">${sim?"Incidents come from the backend, so they do not appear in simulated mode.":"No anomalies. The backend compares each metric with its own recent baseline and needs about 12 samples first."}</div>`;
+}
+
+function checkPayload(p){
+  const extra = Object.keys(p).filter(k=>!ALLOW.includes(k));
+  const secrets = Object.entries(p).filter(([k,v])=>typeof v==="string" && SECRET_RE.test(v)).map(([k])=>k);
+  return {extra, secrets, bad: extra.length||secrets.length};
+}
+
+function renderEgress(){
+  $("allowTxt").innerHTML = "Allow-listed fields: <span class='mono'>"+ALLOW.join(", ")+"</span>. Anything else, or text that looks like a secret, is flagged red.";
+  const recent = [...events].sort((a,b)=>b.event_time_utc.localeCompare(a.event_time_utc)).slice(0,15);
+  const bad = recent.filter(p=>checkPayload(p).bad).length;
+  $("saasSide").innerHTML = (bad ? `<div class="flag" style="margin-bottom:6px">${bad} payload(s) contain non-allowed fields or possible secrets</div>` : (recent.length?`<div class="ok-tag" style="margin-bottom:6px">All ${recent.length} recent payloads pass the allow-list check</div>`:""))
+    + (recent.length ? recent.map(p=>{
+      const c = checkPayload(p), note = [];
+      if(c.extra.length) note.push("not allowed: "+c.extra.join(", "));
+      if(c.secrets.length) note.push("possible secret in: "+c.secrets.join(", "));
+      return `<details class="pl ${c.bad?"bad":""}"><summary><span class="mono">${esc(String(p.payload_id).slice(0,8))} ${esc(p.metric)}=${esc(p.value)}</span><span>${c.bad?`<span class="flag">${esc(note.join("; "))}</span>`:`<span class="ok-tag">clean</span>`} ${utc(p.event_time_utc)}</span></summary><pre class="mono">${esc(JSON.stringify(p,null,2))}</pre></details>`;
+    }).join("") : `<div class="empty">No payloads yet.</div>`);
+}
+
+async function renderCollectorSide(){
+  if(!CONFIG.COLLECTOR_EGRESS || sim) return;
+  try{
+    const sent = await (await fetch(CONFIG.COLLECTOR_EGRESS)).json();
+    const got = new Set(events.map(e=>e.payload_id));
+    const missing = sent.filter(p=>!got.has(p.payload_id));
+    $("localSide").className = "scroll";
+    $("localSide").innerHTML = `<div class="${missing.length?"flag":"ok-tag"}" style="margin-bottom:6px">Sent ${sent.length}, received ${got.size}${missing.length?`, ${missing.length} not yet received (buffered or lost)`:", none missing"}</div>`
+      + sent.slice(-15).reverse().map(p=>`<details class="pl"><summary><span class="mono">${esc(String(p.payload_id).slice(0,8))} ${esc(p.metric)}=${esc(p.value)}</span></summary><pre class="mono">${esc(JSON.stringify(p,null,2))}</pre></details>`).join("");
+  }catch(e){ /* collector log optional */ }
+}
+
+async function poll(){
+  if(sim) return;
+  try{
+    const r = await fetch(CONFIG.API+"/events");
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    events = (await r.json()).filter(e=>!CONFIG.TENANT || e.tenant_id===CONFIG.TENANT);
+    try{ incidents = await (await fetch(CONFIG.API+"/incidents?tenant="+CONFIG.TENANT)).json(); }catch(e){ incidents = []; }
+    $("errBar").classList.remove("show");
+    render(); renderCollectorSide();
+  }catch(e){
+    $("errBar").textContent = `Cannot reach ${CONFIG.API}/events (${e.message}). Start the backend, and add CORS to FastAPI, or press "Use simulated feed" to keep designing.`;
+    $("errBar").classList.add("show");
+    render();
+  }
+}
+
+/* ===== simulated feed: for designing the UI before the backend exists ===== */
+let spike = 0, leak = false, tick = 0;
+function simPayload(metric, value, severity, extra){
+  return Object.assign({payload_id:crypto.randomUUID(),tenant_id:CONFIG.TENANT,event_time_utc:new Date().toISOString(),source_tz:"Asia/Kolkata",source_id:"srv-7f3a",metric,value,severity},extra||{});
+}
+function simStep(){
+  tick++;
+  const cpu = Math.round(Math.min(99, 35 + 10*Math.sin(tick/5) + Math.random()*6 + (spike>0?50:0)));
+  if(spike>0) spike--;
+  const mem = Math.round(55 + 6*Math.sin(tick/9) + Math.random()*4);
+  const lat = Math.round(40 + Math.random()*30 + (spike>0?120:0));
+  const sev = v=>v>=90?"high":v>=70?"medium":"low";
+  events.push(simPayload("cpu",cpu,sev(cpu),cpu>=70?{summary:`CPU ${cpu}% is well above baseline`}:{}));
+  events.push(simPayload("memory",mem,sev(mem)));
+  events.push(simPayload("latency",lat,lat>=250?"high":lat>=100?"medium":"low"));
+  events.push(simPayload("packet_loss",+(Math.random()*0.6).toFixed(2),"low"));
+  if(tick%12===0) events.push(simPayload("failed_logins",14,"high",{summary:"14 failed logins from one source in 60s"}));
+  if(leak){ events.push(simPayload("failed_logins",3,"medium",{summary:"login failed user=raj password=abc123", raw_line:"password=abc123"})); leak=false; }
+  events = events.slice(-400);
+  render();
+}
+$("simBtn").onclick = ()=>{
+  sim = !sim;
+  $("simBtn").textContent = sim ? "Switch to live backend" : "Use simulated feed";
+  $("simBar").classList.toggle("show", sim);
+  $("spikeBtn").hidden = $("secretBtn").hidden = !sim;
+  events = []; healthHist = []; lastState = null;
+  clearInterval(simTimer);
+  if(sim){ $("errBar").classList.remove("show"); simStep(); simTimer = setInterval(simStep, 1000); } else poll();
+};
+$("spikeBtn").onclick = ()=>{ spike = 8; };
+$("secretBtn").onclick = ()=>{ leak = true; };
+
+render(); poll(); setInterval(poll, CONFIG.POLL_MS); setInterval(()=>{ if(!sim) render(); }, 5000);
+</script>
+</body>
+</html>
